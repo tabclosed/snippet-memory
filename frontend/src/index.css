@@ -1,0 +1,620 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, sans-serif;
+
+  /* Dark theme palette, defined once so every rule below just
+     references these instead of hardcoding colors. */
+  --bg: #15161c;
+  --bg-elevated: #1d1e26;
+  --bg-elevated-hover: #262733;
+  --border: #2d2e3a;
+  --border-light: #3a3b48;
+  --text: #e7e7ec;
+  --text-muted: #a3a4b3;
+  --text-faint: #6d6e7d;
+  --accent: #7c8cff;
+  --accent-hover: #6472e0;
+  --danger: #e5534b;
+  --danger-hover: #c94640;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.page-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.page-header-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.copy-button-light.settings-button {
+  /* Lines up with the search box below (sidebar width + list-layout
+     gap), so it sits at that same horizontal start point while staying
+     in the header row rather than moving down next to the search box
+     itself. Positioned absolutely (rather than via margin) so it's
+     anchored to a fixed point regardless of how wide the "Snippets"
+     title happens to render. */
+  position: absolute;
+  left: calc(200px + 2rem);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.back-link:hover {
+  text-decoration: underline;
+  color: var(--text);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+}
+.search-input::placeholder {
+  color: var(--text-faint);
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.list-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.sidebar h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 0 0 0.75rem 0;
+}
+
+.category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.category-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.category-item:hover {
+  background: var(--bg-elevated-hover);
+  color: var(--text);
+}
+
+.category-item.active {
+  background: var(--accent);
+  color: #10111a;
+}
+
+.category-count {
+  font-size: 0.75rem;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.snippet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tag {
+  background: var(--bg-elevated-hover);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.language-badge {
+  background: var(--accent);
+  color: #10111a;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.snippet-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.snippet-card-body {
+  padding: 1.25rem 1.5rem;
+}
+
+.reorder-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.reorder-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-light);
+  background: var(--bg-elevated);
+}
+
+.reorder-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.snippet-card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.snippet-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.snippet-card-description {
+  display: block;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.snippet-card-description-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.snippet-card .code-wrapper {
+  margin-top: 0.75rem;
+}
+
+.code-wrapper-full-bleed {
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+}
+
+.code-wrapper-collapsed {
+  max-height: 6.25rem;
+  overflow: hidden;
+}
+
+.code-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2.5rem;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0), #000000);
+  pointer-events: none;
+  border-radius: 0;
+}
+
+.code-toggle {
+  display: inline-block;
+  margin-top: 0.6rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.code-toggle:hover {
+  text-decoration: underline;
+}
+
+.button {
+  display: inline-block;
+  background: var(--accent);
+  color: #10111a;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--accent-hover);
+}
+
+.button-danger {
+  background: var(--danger);
+  color: white;
+}
+.button-danger:hover {
+  background: var(--danger-hover);
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-light);
+}
+.button-secondary:hover {
+  background: var(--bg-elevated-hover);
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.empty-state {
+  color: var(--text-faint);
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.error {
+  color: #ffb4af;
+  background: rgba(229, 83, 75, 0.15);
+  border: 1px solid rgba(229, 83, 75, 0.3);
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+}
+
+.code-wrapper {
+  position: relative;
+  margin-top: 1.5rem;
+}
+
+.copy-button {
+  position: absolute;
+  top: 1.5rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #f4f4f4;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.copy-button-light {
+  position: static;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+}
+
+.copy-button-light:hover {
+  background: var(--bg-elevated-hover);
+  color: var(--text);
+}
+
+.snippet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 600px;
+}
+
+.snippet-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.snippet-form input,
+.snippet-form textarea {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: normal;
+}
+.snippet-form input:focus,
+.snippet-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.snippet-form textarea {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.detail-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+/* --- Temp Edit page --- */
+
+.temp-edit-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: -0.5rem 0 0 0;
+}
+
+.temp-edit-editor-wrapper {
+  margin-top: 1rem;
+  background: #000000;
+  border-radius: 8px;
+  overflow: auto;
+  min-height: 300px;
+  max-height: 65vh;
+}
+
+/* prism-tomorrow.css sets its own background on the highlighted <pre>;
+   override it so the editor matches the rest of the app's black code
+   blocks instead of prism-tomorrow's dark grey. */
+.temp-edit-editor-wrapper pre,
+.temp-edit-editor-wrapper textarea {
+  background: transparent !important;
+}
+
+.temp-edit-editor {
+  min-height: 300px;
+}
+
+.temp-edit-editor textarea:focus {
+  outline: none;
+}
+
+/* --- Login page --- */
+
+.login-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 340px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.login-subtitle {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.login-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-submit {
+  text-align: center;
+}
+
+/* --- Settings page --- */
+
+.settings-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.settings-section:first-of-type {
+  margin-top: 1.5rem;
+}
+
+.settings-section h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.05rem;
+}
+
+.settings-section-hint {
+  margin: 0 0 0.75rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.settings-section-hint a {
+  color: var(--accent);
+}
+
+.settings-version {
+  margin: 1rem 0 0 0;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+/* --- Reorder page --- */
+
+.reorder-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: -0.5rem 0 1.25rem 0;
+}
+
+.reorder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reorder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.1s ease, background 0.1s ease;
+}
+
+.reorder-row-drag-over {
+  border-color: var(--accent);
+  background: var(--bg-elevated-hover);
+}
+
+.reorder-row-handle {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  cursor: grab;
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.reorder-row-description {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reorder-row-description-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.reorder-row-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}

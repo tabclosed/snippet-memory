@@ -1,0 +1,6 @@
+# Windows .exe build output (see build.sh / build.ps1).
+.vs/
+to-do.txt
+/database/
+/dist/
+
