@@ -555,6 +555,22 @@ h1 {
   font-size: 0.8rem;
 }
 
+.settings-version-status {
+  margin: 0.25rem 0 0 0;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.settings-version-status-alert {
+  color: var(--accent);
+}
+
+.settings-version-status a {
+  color: var(--accent);
+  margin-left: 0.35rem;
+}
+
 /* --- Reorder page --- */
 
 .reorder-hint {

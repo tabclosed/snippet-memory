@@ -1,0 +1,90 @@
+name: Release
+
+# Manually triggered from the Actions tab ("Run workflow") — it prompts
+# for a tag, builds all three platform binaries, and publishes a GitHub
+# Release for that tag with the binaries attached. If the tag doesn't
+# exist yet, it's created automatically pointing at whichever branch/ref
+# you ran the workflow from.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. 2026.09.15)"
+        required: true
+        type: string
+
+# Needed so the workflow's own token is allowed to create releases and
+# upload assets.
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Embed frontend into the backend
+        # Matches what build.sh/build-linux.sh do locally: the release
+        # build tag embeds this folder straight into the binary (see
+        # backend/frontend_release.go), so each platform's binary is a
+        # single self-contained file.
+        run: cp -r frontend/dist backend/static
+
+      - name: Create output directory
+        run: mkdir -p dist
+
+      # Each target is a plain cross-compile — CGO_ENABLED=0 since this
+      # project is pure Go and doesn't need cgo, and skipping it avoids
+      # needing a matching C toolchain for every target platform.
+      - name: Build Windows (amd64)
+        working-directory: backend
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: go build -tags release -o ../dist/snippet-memory-windows.exe .
+
+      - name: Build Linux (amd64)
+        working-directory: backend
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: go build -tags release -o ../dist/snippet-memory-linux .
+
+      - name: Build Linux (arm64)
+        working-directory: backend
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: go build -tags release -o ../dist/snippet-memory-linux-arm .
+
+      - name: Create release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/snippet-memory-windows.exe
+            dist/snippet-memory-linux
+            dist/snippet-memory-linux-arm

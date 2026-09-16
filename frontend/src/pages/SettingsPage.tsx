@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { changePassword, logout } from "../api";
 
@@ -7,6 +7,39 @@ interface SettingsPageProps {
 }
 
 const REPO_URL = "https://github.com/tabclosed/snippet-memory";
+const RELEASES_URL = "https://github.com/tabclosed/snippet-memory/releases";
+const RELEASES_API_URL =
+  "https://api.github.com/repos/tabclosed/snippet-memory/releases/latest";
+
+// The version of the app actually running — bump this on release. Dates
+// (YYYY.MM.DD) sort correctly either as strings or numerically, so this
+// doubles as a simple, readable version scheme.
+const APP_VERSION = "2026.09.14";
+
+type UpdateStatus =
+  | { state: "checking" }
+  | { state: "up-to-date" }
+  | { state: "update-available"; latest: string }
+  | { state: "error" };
+
+// Parses a "YYYY.MM.DD" (optionally "vYYYY.MM.DD") version string into
+// comparable numbers. Returns null if it doesn't look like that shape —
+// callers should treat that as "can't tell," not "definitely older."
+function parseVersion(v: string): [number, number, number] | null {
+  const match = v.trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/i);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function isNewer(candidate: string, current: string): boolean {
+  const c = parseVersion(candidate);
+  const base = parseVersion(current);
+  if (!c || !base) return false;
+  for (let i = 0; i < 3; i++) {
+    if (c[i] !== base[i]) return c[i] > base[i];
+  }
+  return false;
+}
 
 export function SettingsPage({ onLogout }: SettingsPageProps) {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -14,6 +47,37 @@ export function SettingsPage({ onLogout }: SettingsPageProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({
+    state: "checking",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(RELEASES_API_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error("request failed");
+        return res.json();
+      })
+      .then((data: { tag_name?: string }) => {
+        if (cancelled) return;
+        const latest = (data.tag_name ?? "").trim();
+        if (!latest) {
+          setUpdateStatus({ state: "error" });
+        } else if (isNewer(latest, APP_VERSION)) {
+          setUpdateStatus({ state: "update-available", latest });
+        } else {
+          setUpdateStatus({ state: "up-to-date" });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUpdateStatus({ state: "error" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -121,7 +185,29 @@ export function SettingsPage({ onLogout }: SettingsPageProps) {
           </a>{" "}
           of this project to support and contribute.
         </p>
-        <p className="settings-version">Version: 2026.09.10</p>
+        <p className="settings-version">App version: {APP_VERSION}</p>
+        <p
+          className={
+            "settings-version-status" +
+            (updateStatus.state === "update-available"
+              ? " settings-version-status-alert"
+              : "")
+          }
+        >
+          {updateStatus.state === "checking" && <>└── checking for updates…</>}
+          {updateStatus.state === "up-to-date" && <>└── up to date</>}
+          {updateStatus.state === "error" && (
+            <>└── couldn't check for updates</>
+          )}
+          {updateStatus.state === "update-available" && (
+            <>
+              └── update available ({updateStatus.latest}){" "}
+              <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
+                visit GitHub
+              </a>
+            </>
+          )}
+        </p>
       </section>
 
       <section className="settings-section">
