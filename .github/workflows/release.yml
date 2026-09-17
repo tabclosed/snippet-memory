@@ -1,15 +1,20 @@
 name: Release
 
 # Manually triggered from the Actions tab ("Run workflow") — it prompts
-# for a tag, builds all three platform binaries, and publishes a GitHub
-# Release for that tag with the binaries attached. If the tag doesn't
-# exist yet, it's created automatically pointing at whichever branch/ref
-# you ran the workflow from.
+# for a tag and a description, builds all three platform binaries, and
+# publishes a GitHub Release for that tag with the binaries attached and
+# your description as the release notes (no auto-generated changelog).
+# If the tag doesn't exist yet, it's created automatically pointing at
+# whichever branch/ref you ran the workflow from.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: "Release tag (e.g. 2026.09.15)"
+        required: true
+        type: string
+      description:
+        description: "Release description / notes"
         required: true
         type: string
 
@@ -83,7 +88,7 @@ jobs:
         with:
           tag_name: ${{ inputs.tag }}
           name: ${{ inputs.tag }}
-          generate_release_notes: true
+          body: ${{ inputs.description }}
           files: |
             dist/snippet-memory-windows.exe
             dist/snippet-memory-linux
