@@ -12,6 +12,14 @@ Some features are:
 - One click copy button allows for copying the whole text block into clipboard.
 - Temporary edit: When you need to change one or a few variables in a code block before copying into the clipboard. This edit will be temporary and will be discarded as soon as you exit the edit section.
 
+<br>
+<p align="center">
+  <img src="sample-image1.png" width="700">
+  <img src="sample-image2.png" width="700">
+  
+</p>
+<br>
+
 # under the hood
 
 The backend of the program is Go which provides the database interaction and the server. You can change the port in a .json file which is created after the first run. Default port is 8080, meaning you can use the program using 127.0.0.1:8080 in your local system or relevant address in your network ie: 192.168.1.30:8080
@@ -26,4 +34,4 @@ This app is not intended to be a password storage or be on networks exposed to t
 
 # support
 
-If you find this project helpful consider a donation. Want to check out other simple but useful programs, check my repository. More is coming.
+If you find this project helpful consider a [donation](https://github.com/tabclosed/tabclosed). Want to check out other simple but useful programs, check my repository.
