@@ -29,7 +29,22 @@ func main() {
 	limiter := newLoginLimiter()
 
 	a := &api{store: store}
-	auth := &authAPI{passwords: passwords, sessions: sessions, limiter: limiter}
+
+	// Behind a reverse proxy every request arrives from the proxy's own
+	// address, so without this all clients would share one login-attempt
+	// bucket (three bad guesses from anyone would lock out the owner).
+	// List the proxy's IP/CIDR here and its X-Forwarded-For header is
+	// trusted — only from those addresses, never from anyone else.
+	// Example: SNIPPET_MEMORY_TRUSTED_PROXIES="127.0.0.1,::1"
+	trustedProxies, err := parseTrustedProxies(os.Getenv("SNIPPET_MEMORY_TRUSTED_PROXIES"))
+	if err != nil {
+		log.Fatalf("SNIPPET_MEMORY_TRUSTED_PROXIES: %v", err)
+	}
+	if len(trustedProxies) > 0 {
+		log.Printf("trusting X-Forwarded-For from %d proxy address range(s)", len(trustedProxies))
+	}
+
+	auth := &authAPI{passwords: passwords, sessions: sessions, limiter: limiter, trustedProxies: trustedProxies}
 
 	mux := http.NewServeMux()
 
@@ -61,7 +76,19 @@ func main() {
 	// self-contained file.
 	mux.Handle("/", frontendHandler())
 
-	handler := withCORS(mux)
+	// (withCORS inside that chain is build-tag specific — cors_dev.go /
+	// cors_release.go: dev builds allow the Vite dev server cross-origin;
+	// release builds add no CORS headers at all.)
+	// Security headers, the cross-origin (CSRF) check and the JSON-body
+	// check wrap the router; see security.go. If you serve this behind a
+	// reverse proxy under a different public origin and writes start
+	// failing with "cross-origin request blocked", either forward the
+	// original Host header from the proxy or list the public origin here:
+	// SNIPPET_MEMORY_TRUSTED_ORIGINS="https://snippets.example.com"
+	handler, err := buildHandler(mux, parseTrustedOrigins(os.Getenv("SNIPPET_MEMORY_TRUSTED_ORIGINS")))
+	if err != nil {
+		log.Fatalf("SNIPPET_MEMORY_TRUSTED_ORIGINS: %v", err)
+	}
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 
@@ -75,52 +102,17 @@ func main() {
 	certFile := os.Getenv("SNIPPET_MEMORY_TLS_CERT")
 	keyFile := os.Getenv("SNIPPET_MEMORY_TLS_KEY")
 
+	// Explicit http.Server so we can set timeouts (see server.go).
+	srv := newServer(addr, handler)
+
 	if certFile != "" && keyFile != "" {
 		log.Printf("server listening on https://localhost%s", addr)
-		err = http.ListenAndServeTLS(addr, certFile, keyFile, handler)
+		err = srv.ListenAndServeTLS(certFile, keyFile)
 	} else {
 		log.Printf("server listening on http://localhost%s", addr)
-		err = http.ListenAndServe(addr, handler)
+		err = srv.ListenAndServe()
 	}
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// allowedDevOrigins are the only origins the API will answer cross-origin
-// requests for — specific known local dev-server addresses, not "*".
-// In production the frontend and API share an origin, so browsers never
-// even consult these headers there; this only matters if something
-// talks to the Go server (:8080) directly from a different origin during
-// development, bypassing Vite's same-origin proxy (see vite.config.ts).
-var allowedDevOrigins = map[string]bool{
-	"http://localhost:5173": true,
-	"http://127.0.0.1:5173": true,
-}
-
-// withCORS lets the allow-listed dev origins above call the API
-// cross-origin, with credentials (the session cookie) included, and
-// leaves the CORS headers off entirely for anything else — so a
-// browser talking to this server from an unrecognized origin can't
-// read the response at all, rather than being allowed in by a blanket
-// "Access-Control-Allow-Origin: *".
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if allowedDevOrigins[origin] {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		}
-		// Tells caches/proxies the response varies by Origin, so a
-		// response for one origin never gets served to another.
-		w.Header().Set("Vary", "Origin")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }

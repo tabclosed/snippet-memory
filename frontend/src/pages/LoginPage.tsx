@@ -3,12 +3,15 @@ import { login } from "../api";
 
 interface LoginPageProps {
   onSuccess: () => void;
+  // True when shown as the "session expired" overlay on top of the app,
+  // rather than as the first screen.
+  expired?: boolean;
 }
 
 // The app's own login screen — shown instead of the browser's native
 // Basic Auth dialog. App.tsx renders this whenever GET /api/auth/check
 // comes back unauthenticated.
-export function LoginPage({ onSuccess }: LoginPageProps) {
+export function LoginPage({ onSuccess, expired = false }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -31,7 +34,11 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
     <div className="login-page">
       <form onSubmit={handleSubmit} className="login-card">
         <h1>Snippet Memory</h1>
-        <p className="login-subtitle">Enter the password to continue.</p>
+        <p className="login-subtitle">
+          {expired
+            ? "Your session expired. Log in to pick up where you left off."
+            : "Enter the password to continue."}
+        </p>
 
         <input
           type="password"

@@ -634,3 +634,15 @@ h1 {
   gap: 0.4rem;
   flex-shrink: 0;
 }
+
+/* Shown over the app when the session expires mid-use. Opaque so the
+   (already loaded) snippets underneath aren't visible while logged out,
+   but the app stays mounted so unsaved form input survives. */
+.session-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  background: var(--bg);
+  overflow-y: auto;
+}

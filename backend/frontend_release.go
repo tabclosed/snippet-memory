@@ -26,7 +26,7 @@ func frontendHandler() http.Handler {
 	if err != nil {
 		log.Fatalf("embedded frontend missing — did the build script run `npm run build` and copy frontend/dist to backend/static first? %v", err)
 	}
-	return http.FileServer(http.FS(sub))
+	return newSPAHandler(sub)
 }
 
 // dbPath (release build) puts the database in a "database" folder next to

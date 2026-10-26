@@ -79,7 +79,7 @@ func NewStore(filePath string) (*Store, error) {
 		for i := range s.snippets {
 			s.snippets[i].Order = i
 		}
-		if err := s.save(); err != nil {
+		if err := s.save(s.snippets); err != nil {
 			return nil, err
 		}
 	}
@@ -87,10 +87,12 @@ func NewStore(filePath string) (*Store, error) {
 	return s, nil
 }
 
-// save writes the current in-memory snippets back to disk as JSON.
-// Callers must hold s.mu (write lock) before calling this.
-func (s *Store) save() error {
-	data, err := json.MarshalIndent(s.snippets, "", "  ")
+// save writes the given snippets to disk as JSON. It deliberately takes
+// the slice to persist rather than reading s.snippets, so mutators can
+// write a modified COPY first and only adopt it in memory once the write
+// has succeeded (see commit). Callers must hold s.mu (write lock).
+func (s *Store) save(snippets []Snippet) error {
+	data, err := json.MarshalIndent(snippets, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding snippets: %w", err)
 	}
@@ -106,7 +108,7 @@ func (s *Store) save() error {
 			return fmt.Errorf("creating store directory: %w", err)
 		}
 	}
-	if err := os.WriteFile(s.filePath, data, 0600); err != nil {
+	if err := writeFileAtomic(s.filePath, data, 0600); err != nil {
 		return fmt.Errorf("writing store file: %w", err)
 	}
 	return nil
@@ -150,6 +152,33 @@ func normalizeTags(tags []string) []string {
 	return tags
 }
 
+// commit persists next and, only if that succeeds, makes it the store's
+// in-memory state. If the write fails, s.snippets and s.nextID are left
+// exactly as they were, so memory never gets ahead of disk: the caller's
+// 500 means "nothing changed", and a later successful save can't
+// resurrect a change the client was told had failed.
+//
+// Every mutator follows the same copy-on-write pattern: clone the slice,
+// modify the clone, commit. Callers must hold s.mu (write lock).
+func (s *Store) commit(next []Snippet, nextID int) error {
+	if err := s.save(next); err != nil {
+		return err
+	}
+	s.snippets = next
+	s.nextID = nextID
+	return nil
+}
+
+// cloneSnippets returns a copy of the slice that can be modified without
+// touching the original. Snippet values are copied; the Tags slices are
+// shared, which is safe because mutators replace Tags wholesale
+// (normalizeTags(input.Tags)) and never edit them in place.
+func cloneSnippets(in []Snippet) []Snippet {
+	out := make([]Snippet, len(in))
+	copy(out, in)
+	return out
+}
+
 // Create adds a new snippet and persists it to disk. New snippets are
 // inserted at the top of the display order (Order 0) — every existing
 // snippet's Order shifts down by one to make room.
@@ -157,8 +186,10 @@ func (s *Store) Create(input SnippetInput) (Snippet, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i := range s.snippets {
-		s.snippets[i].Order++
+	next := make([]Snippet, len(s.snippets), len(s.snippets)+1)
+	copy(next, s.snippets)
+	for i := range next {
+		next[i].Order++
 	}
 
 	now := time.Now().UTC()
@@ -172,10 +203,10 @@ func (s *Store) Create(input SnippetInput) (Snippet, error) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	s.nextID++
+	next = append(next, snip)
 
-	s.snippets = append(s.snippets, snip)
-	if err := s.save(); err != nil {
+	// The ID is only consumed if the write succeeds.
+	if err := s.commit(next, s.nextID+1); err != nil {
 		return Snippet{}, err
 	}
 	return snip, nil
@@ -194,8 +225,9 @@ func (s *Store) Update(id int, input SnippetInput) (Snippet, bool, error) {
 			snip.Content = input.Content
 			snip.UpdatedAt = time.Now().UTC()
 
-			s.snippets[i] = snip
-			if err := s.save(); err != nil {
+			next := cloneSnippets(s.snippets)
+			next[i] = snip
+			if err := s.commit(next, s.nextID); err != nil {
 				return Snippet{}, false, err
 			}
 			return snip, true, nil
@@ -214,8 +246,10 @@ func (s *Store) SetOrder(id, order int) (Snippet, bool, error) {
 	for i, snip := range s.snippets {
 		if snip.ID == id {
 			snip.Order = order
-			s.snippets[i] = snip
-			if err := s.save(); err != nil {
+
+			next := cloneSnippets(s.snippets)
+			next[i] = snip
+			if err := s.commit(next, s.nextID); err != nil {
 				return Snippet{}, false, err
 			}
 			return snip, true, nil
@@ -231,8 +265,13 @@ func (s *Store) Delete(id int) (bool, error) {
 
 	for i, snip := range s.snippets {
 		if snip.ID == id {
-			s.snippets = append(s.snippets[:i], s.snippets[i+1:]...)
-			if err := s.save(); err != nil {
+			// Build a fresh slice instead of append(s.snippets[:i], ...),
+			// which shifts elements inside the live backing array and
+			// would corrupt in-memory state if the save then failed.
+			next := make([]Snippet, 0, len(s.snippets)-1)
+			next = append(next, s.snippets[:i]...)
+			next = append(next, s.snippets[i+1:]...)
+			if err := s.commit(next, s.nextID); err != nil {
 				return false, err
 			}
 			return true, nil

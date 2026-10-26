@@ -14,7 +14,7 @@ const RELEASES_API_URL =
 // The version of the app actually running — bump this on release. Dates
 // (YYYY.MM.DD) sort correctly either as strings or numerically, so this
 // doubles as a simple, readable version scheme.
-const APP_VERSION = "2026.09.14";
+const APP_VERSION = "2026.10.12";
 
 type UpdateStatus =
   | { state: "checking" }

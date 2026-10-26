@@ -33,12 +33,18 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          # Take the version from go.mod so the two can't drift apart.
+          # "go 1.26" there resolves to the newest 1.26.x patch release,
+          # and check-latest makes sure it really is the newest patch
+          # (the security fixes ship in patch releases) even if an older
+          # one is cached on the runner image.
+          go-version-file: backend/go.mod
+          check-latest: true
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Build frontend
         working-directory: frontend

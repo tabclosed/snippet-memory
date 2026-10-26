@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +23,10 @@ type authAPI struct {
 	passwords *PasswordStore
 	sessions  *SessionStore
 	limiter   *loginLimiter
+	// trustedProxies are the reverse proxies whose X-Forwarded-For
+	// header may be believed when attributing requests to a client
+	// (see clientIP). Empty by default: the header is ignored.
+	trustedProxies []*net.IPNet
 }
 
 // requireAuth wraps a handler so it only runs for requests carrying a
@@ -77,14 +82,10 @@ func isHTTPS(r *http.Request) bool {
 // login handles POST /api/login — the app's own login form submits here
 // (not a browser auth dialog). Body: {"password": "..."}.
 func (a *authAPI) login(w http.ResponseWriter, r *http.Request) {
-	ip := clientIP(r)
-	if ok, retryAfter := a.limiter.Allowed(ip); !ok {
-		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
-		writeError(w, http.StatusTooManyRequests,
-			fmt.Sprintf("too many failed login attempts — try again in %s", formatDuration(retryAfter)))
-		return
-	}
+	key := limiterKey(clientIP(r, a.trustedProxies))
 
+	// Parse first: a malformed body is cheap to reject and shouldn't
+	// burn one of the caller's limited attempts.
 	r.Body = http.MaxBytesReader(w, r.Body, maxAuthBodyBytes)
 	var body struct {
 		Password string `json:"password"`
@@ -94,12 +95,21 @@ func (a *authAPI) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Attempt counts this try up front, atomically, so a burst of
+	// parallel requests can't all slip past the check before the
+	// failures are recorded.
+	if ok, retryAfter := a.limiter.Attempt(key); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("too many failed login attempts — try again in %s", formatDuration(retryAfter)))
+		return
+	}
+
 	if !a.passwords.Verify(body.Password) {
-		a.limiter.RecordFailure(ip)
 		writeError(w, http.StatusUnauthorized, "incorrect password")
 		return
 	}
-	a.limiter.RecordSuccess(ip)
+	a.limiter.RecordSuccess(key)
 
 	token, err := a.sessions.Create()
 	if err != nil {
@@ -149,15 +159,29 @@ func (a *authAPI) changePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
-	if !a.passwords.Verify(body.CurrentPassword) {
-		writeError(w, http.StatusUnauthorized, "current password is incorrect")
-		return
-	}
+	// Checked before any password comparison: it reveals nothing about
+	// the current password, so it needn't consume a guess.
 	if len(body.NewPassword) < 4 {
 		writeError(w, http.StatusBadRequest, "new password must be at least 4 characters")
 		return
 	}
+
+	// This endpoint compares a password too, so it gets the same
+	// attempt limit as login — keyed per session, since whoever is
+	// guessing here already holds a valid cookie (stolen or not) and
+	// can't get another without the password.
+	key := a.changePasswordKey(r)
+	if ok, retryAfter := a.limiter.Attempt(key); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("too many incorrect password attempts — try again in %s", formatDuration(retryAfter)))
+		return
+	}
+	if !a.passwords.Verify(body.CurrentPassword) {
+		writeError(w, http.StatusUnauthorized, "current password is incorrect")
+		return
+	}
+	a.limiter.RecordSuccess(key)
 
 	if err := a.passwords.Change(body.NewPassword); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save new password")
@@ -165,4 +189,15 @@ func (a *authAPI) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.sessions.Clear()
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// changePasswordKey identifies who is guessing at the change-password
+// endpoint. requireAuth guarantees a session cookie, so the session is
+// the key; the IP-based fallback only matters if the handler is ever
+// wired up without requireAuth.
+func (a *authAPI) changePasswordKey(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName); err == nil && c.Value != "" {
+		return "pw-session:" + c.Value
+	}
+	return "pw-ip:" + limiterKey(clientIP(r, a.trustedProxies))
 }

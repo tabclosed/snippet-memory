@@ -2,14 +2,18 @@
 
 package main
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
 // frontendHandler (dev build, the default) serves the React app straight
-// off disk from frontend/dist, the same way `go run .`/`go build` always
+// off disk from frontend/dist (with client-side-route fallback to
+// index.html, see spa.go), the same way `go run .`/`go build` always
 // worked. Run `npm run build` in frontend/ at least once before starting
 // the server, or this directory won't exist yet.
 func frontendHandler() http.Handler {
-	return http.FileServer(http.Dir("../frontend/dist"))
+	return newSPAHandler(os.DirFS("../frontend/dist"))
 }
 
 // dbPath (dev build) matches the project layout: backend/ and database/

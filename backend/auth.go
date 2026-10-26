@@ -148,7 +148,7 @@ func (p *PasswordStore) setLocked(password string) error {
 			return fmt.Errorf("creating auth directory: %w", err)
 		}
 	}
-	if err := os.WriteFile(p.filePath, data, 0600); err != nil {
+	if err := writeFileAtomic(p.filePath, data, 0600); err != nil {
 		return fmt.Errorf("writing auth file: %w", err)
 	}
 	return nil
